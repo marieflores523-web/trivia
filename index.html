@@ -41,13 +41,20 @@
 <body>
   <div class="container">
     <h1>☁️ TRIVIA IA!</h1>
-    <p class="subtitle">Preguntas generadas por IA sobre el tema que elijas</p>
+    <p class="subtitle">Nube, Big Data e IoT — Preguntas generadas por IA (10 Preguntas)</p>
 
     <div id="setup-screen">
       <label class="setup-label" for="apikey-input">Tu API Key de Groq</label>
       <input type="password" id="apikey-input" placeholder="gsk_...">
       <label class="setup-label" for="topic-input">¿Sobre qué tema quieres jugar?</label>
-      <input type="text" id="topic-input" value="Modelos de Servicio en la Nube: IaaS, PaaS y SaaS" placeholder="Ej: Revolución Francesa, Balanza de Pagos, Ética en IA...">
+      <input type="text" id="topic-input" value="Transformación Digital: Computación en la Nube (IaaS/PaaS/SaaS), Big Data (las 4 V's, Hadoop, Spark) e Internet de las Cosas (IoT)" placeholder="Ej: Revolución Francesa, Balanza de Pagos, Ética en IA...">
+      <label class="setup-label" style="margin-top:15px;">O selecciona un tema rápido:</label>
+      <div style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:15px;">
+        <button type="button" class="btn btn-secondary" style="padding:8px 14px; font-size:0.85rem; margin:0;" onclick="document.getElementById('topic-input').value='Computación en la Nube: definición, características (escalabilidad, elasticidad, pago por uso) y modelos de servicio IaaS, PaaS y SaaS'">☁️ Solo Cloud</button>
+        <button type="button" class="btn btn-secondary" style="padding:8px 14px; font-size:0.85rem; margin:0;" onclick="document.getElementById('topic-input').value='Big Data: las 4 V (volumen, variedad, velocidad, veracidad), datos estructurados vs no estructurados, y herramientas como Hadoop y Spark'">📊 Solo Big Data</button>
+        <button type="button" class="btn btn-secondary" style="padding:8px 14px; font-size:0.85rem; margin:0;" onclick="document.getElementById('topic-input').value='Internet de las Cosas (IoT): dispositivos, sensores y actuadores, redes de comunicación, plataformas IoT, capas de abstracción, aplicaciones (hogar inteligente, ciudades inteligentes, industria 4.0, salud conectada) y seguridad'">📡 Solo IoT</button>
+        <button type="button" class="btn btn-secondary" style="padding:8px 14px; font-size:0.85rem; margin:0;" onclick="document.getElementById('topic-input').value='Transformación Digital: Computación en la Nube (IaaS/PaaS/SaaS), Big Data (las 4 V\'s, Hadoop, Spark) e Internet de las Cosas (IoT)'">🌐 Los 3 temas</button>
+      </div>
       <label style="display:flex; align-items:center; gap:8px; text-align:left; font-size:0.9rem; color:#666; margin-bottom:15px;">
         <input type="checkbox" id="remember-key" style="width:auto;"> Recordar mi API key en este navegador
       </label>
@@ -103,7 +110,19 @@
     } catch (e) { /* localStorage no disponible, no pasa nada */ }
 
     async function generateQuestions(topic, apiKey) {
-      const prompt = `Genera exactamente 10 preguntas de trivia tipo Kahoot en español sobre el siguiente tema: "${topic}".
+      const seed = Math.floor(Math.random() * 1000000);
+      const angles = [
+        "enfócate en definiciones y conceptos básicos",
+        "enfócate en ejemplos prácticos y casos de uso cotidianos",
+        "enfócate en comparar y contrastar diferencias entre conceptos",
+        "enfócate en ventajas, desventajas y cuándo usar cada cosa",
+        "mezcla preguntas fáciles, medias y difíciles de forma variada"
+      ];
+      const angle = angles[Math.floor(Math.random() * angles.length)];
+
+      const prompt = `[Sesión aleatoria #${seed}] Genera exactamente 10 preguntas de trivia tipo Kahoot en español sobre el siguiente tema: "${topic}".
+
+Para esta ronda en particular: ${angle}. Evita repetir preguntas típicas u obvias; sorpréndeme con variedad real cada vez que te pida esto, aunque el tema sea el mismo.
 
 Cada pregunta debe tener:
 - "question": el texto de la pregunta
@@ -111,7 +130,7 @@ Cada pregunta debe tener:
 - "correct": el índice (0-3) de la opción correcta
 - "explanation": una explicación breve (máximo 20 palabras) de por qué esa es la respuesta correcta
 
-Las preguntas deben variar en dificultad, ser claras, y cubrir distintos aspectos del tema.
+Las preguntas deben variar en dificultad, ser claras, y cubrir distintos aspectos del tema. Si el tema incluye varios subtemas (por ejemplo Nube, Big Data e IoT), reparte las preguntas de forma equilibrada entre todos ellos en vez de enfocarte solo en uno.
 
 Evita en lo posible preguntas que dependan de un ejemplo para poder responderse; prioriza preguntas directas sobre el concepto. Si de verdad necesitas un ejemplo, usa ÚNICAMENTE apps o servicios súper conocidos y cotidianos para cualquier persona, como Gmail, Netflix, Spotify, WhatsApp o Instagram. NUNCA uses ejemplos técnicos como AWS, Azure, Google Cloud u otros nombres de infraestructura que no sean de uso diario para el público general.
 
@@ -128,7 +147,10 @@ Responde ÚNICAMENTE con un array JSON válido, sin texto adicional, sin markdow
           },
           body: JSON.stringify({
             model: "llama-3.3-70b-versatile",
-            messages: [{ role: "user", content: prompt }]
+            messages: [{ role: "user", content: prompt }],
+            temperature: 1.3,
+            top_p: 0.95,
+            seed: seed
           })
         }
       );
