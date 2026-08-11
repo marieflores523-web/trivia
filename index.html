@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Cloud Kahoot! - Reto Universitario</title>
+  <title>Trivia IA - Kahoot Style</title>
   <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;700;900&display=swap" rel="stylesheet">
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Montserrat', sans-serif; }
@@ -13,13 +13,18 @@
     p.subtitle { color: #666; margin-bottom: 25px; font-weight: 700; }
     .btn { background-color: #26890c; color: white; border: none; padding: 18px 36px; font-size: 1.3rem; font-weight: bold; border-radius: 12px; cursor: pointer; box-shadow: 0 5px 0 #185906; margin: 10px; }
     .btn:hover { opacity: 0.9; }
+    .btn:disabled { opacity: 0.6; cursor: not-allowed; }
+    .btn-secondary { background-color: #1368ce; box-shadow: 0 5px 0 #0d4a99; }
+    input[type="text"] { width: 100%; padding: 14px; font-size: 1.1rem; border: 2px solid #ddd; border-radius: 10px; margin-bottom: 15px; font-family: 'Montserrat', sans-serif; }
+    .setup-label { display:block; text-align:left; font-weight:700; color:#46178f; margin-bottom:8px; }
     .game-stats { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; font-size: 1.2rem; font-weight: bold; }
     .stat-box { background: #f0f0f0; padding: 10px 20px; border-radius: 20px; color: #333; }
-    .timer-circle { width: 65px; height: 65px; border-radius: 50%; background: #864cbf; color: white; display: flex; align-items: center; justify-content: center; font-size: 1.5rem; font-weight: 900; }
+    .timer-circle { width: 65px; height: 65px; border-radius: 50%; background: #864cbf; color: white; display: flex; align-items: center; justify-content: center; font-size: 1.5rem; font-weight: 900; flex-shrink:0; }
     .question-box { background: #f8f9fa; border: 2px solid #e0e0e0; border-radius: 15px; padding: 25px; margin-bottom: 25px; min-height: 100px; display: flex; align-items: center; justify-content: center; }
     .question-text { font-size: 1.4rem; font-weight: 700; color: #222; }
     .options-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
     .option-btn { color: white; border: none; padding: 20px; border-radius: 12px; font-size: 1.1rem; font-weight: 700; cursor: pointer; text-align: left; display: flex; align-items: center; gap: 12px; min-height: 80px; }
+    .option-btn:disabled { cursor: not-allowed; }
     .opt-0 { background-color: #e21b3c; }
     .opt-1 { background-color: #1368ce; }
     .opt-2 { background-color: #d89e00; }
@@ -28,15 +33,26 @@
     .feedback.correct { background-color: #d4edda; color: #155724; }
     .feedback.incorrect { background-color: #f8d7da; color: #721c24; }
     .hidden { display: none !important; }
+    .spinner { border: 6px solid #eee; border-top: 6px solid #46178f; border-radius: 50%; width: 50px; height: 50px; animation: spin 1s linear infinite; margin: 20px auto; }
+    @keyframes spin { 0% { transform: rotate(0deg);} 100% { transform: rotate(360deg);} }
+    .error-box { background: #f8d7da; color: #721c24; padding: 15px; border-radius: 10px; margin-top: 15px; font-weight: 700; }
   </style>
 </head>
 <body>
   <div class="container">
-    <h1>☁️ CLOUD TRIVIA!</h1>
-    <p class="subtitle">Demuestra tus conocimientos de Computación en la Nube (10 Preguntas)</p>
+    <h1>☁️ TRIVIA IA!</h1>
+    <p class="subtitle">Preguntas generadas por IA sobre el tema que elijas</p>
 
     <div id="setup-screen">
-      <button class="btn" onclick="startRandomGame()">🎲 INICIAR PARTIDA DE 10 PREGUNTAS</button>
+      <label class="setup-label" for="topic-input">¿Sobre qué tema quieres jugar?</label>
+      <input type="text" id="topic-input" value="Modelos de Servicio en la Nube: IaaS, PaaS y SaaS" placeholder="Ej: Revolución Francesa, Balanza de Pagos, Ética en IA...">
+      <button class="btn" id="generate-btn" onclick="startRandomGame()">🎲 GENERAR TRIVIA CON IA</button>
+      <div id="setup-error"></div>
+    </div>
+
+    <div id="loading-screen" class="hidden">
+      <div class="spinner"></div>
+      <p style="font-weight:700; color:#46178f;">La IA está creando tus preguntas...</p>
     </div>
 
     <div id="game-screen" class="hidden">
@@ -61,42 +77,96 @@
     <div id="final-screen" class="hidden">
       <h2>🎉 ¡Juego Completado!</h2>
       <p style="margin:20px 0; font-size:1.5rem;">Puntuación final: <strong id="final-score" style="color:#26890c;">0</strong> pts</p>
-      <button class="btn" onclick="resetToSetup()">🔄 Jugar de Nuevo</button>
+      <div style="background:#f0f0f0; border-radius:15px; padding:20px; margin-bottom:20px;">
+        <p style="font-weight:700; color:#666; margin-bottom:5px;">Nota (escala 3.0 - 5.0)</p>
+        <p style="font-size:2.2rem; font-weight:900; color:#46178f;" id="final-grade">3.0</p>
+        <p style="font-size:0.95rem; color:#666;" id="final-correct">0/10 correctas</p>
+      </div>
+      <button class="btn" onclick="resetToSetup()">🔄 Jugar Otra Vez (Tema Nuevo o Igual)</button>
     </div>
   </div>
 
   <script>
-    let questions = [], currentQ = 0, score = 0, timer, timeLeft = 45;
-    
-    // Banco extendido con más de 10 preguntas
-    const questionBank = [
-      { question: "¿Qué modelo de servicio ofrece infraestructura como máquinas virtuales?", options: ["SaaS", "IaaS", "PaaS", "FaaS"], correct: 1, explanation: "IaaS provee recursos informáticos básicos como procesamiento y almacenamiento." },
-      { question: "¿Cuál es un ejemplo clásico de servicio SaaS?", options: ["Amazon EC2", "Google Cloud Storage", "Gmail / Google Workspace", "AWS Lambda"], correct: 2, explanation: "SaaS provee software completamente gestionado listo para usar." },
-      { question: "¿Qué permite aumentar o reducir recursos según la demanda en la nube?", options: ["Virtualización fija", "Elasticidad y Escalabilidad", "Servidor Dedicado", "Ancho de banda estático"], correct: 1, explanation: "La elasticidad adapta los recursos dinámicamente según la carga." },
-      { question: "¿Qué término describe ejecutar código sin gestionar servidores?", options: ["Serverless / FaaS", "Bare Metal", "On-Premises", "Monolito"], correct: 0, explanation: "Serverless desentiende al desarrollador del mantenimiento de servidores." },
-      { question: "¿Qué es la Nube Híbrida?", options: ["Solo servidores locales", "Nube privada + Nube pública", "Dos nubes públicas", "Redes sin internet"], correct: 1, explanation: "Integra la infraestructura propia con recursos de nubes públicas." },
-      { question: "¿Cuál de los siguientes es un servicio de almacenamiento de objetos en la nube?", options: ["AWS S3 / Google Cloud Storage", "RAM dedicada", "Disco rígido físico local", "CPU Virtual"], correct: 0, explanation: "El almacenamiento de objetos guarda datos en la nube accesible por API." },
-      { question: "¿Qué significa el modelo PaaS?", options: ["Platform as a Service", "Process as a Service", "Public Access Area Service", "Program as a Service"], correct: 0, explanation: "PaaS ofrece un entorno completo para desarrollar sin administrar la infraestructura subyacente." },
-      { question: "¿Qué concepto garantiza la continuidad del servicio si falla un servidor?", options: ["Baja latencia", "Alta Disponibilidad (HA)", "Ancho de banda", "Compresión de datos"], correct: 1, explanation: "La Alta Disponibilidad asegura que otro sistema tome el control automáticamente si hay fallas." },
-      { question: "¿Qué modelo de despliegue es utilizado de forma compartida por múltiples organizaciones?", options: ["Nube Privada", "Nube Pública / Comunitaria", "Nube Local", "Servidor individual"], correct: 1, explanation: "Las nubes públicas o comunitarias comparten recursos físicos de forma segura." },
-      { question: "¿Qué componente de la nube distribuye el tráfico entre varios servidores?", options: ["Balanceador de carga (Load Balancer)", "Firewall local", "Switch físico", "Módem"], correct: 0, explanation: "El balanceador reparte las peticiones entrantes para no saturar ningún equipo." },
-      { question: "¿Cuál es una ventaja clave del pago por uso (Pay-as-you-go) en la nube?", options: ["Comprar hardware costoso por adelantado", "Solo pagar por los recursos computacionales consumidos", "Pagar tarifas fijas sin importar el uso", "Contratos obligatorios a 10 años"], correct: 1, explanation: "Evita costos iniciales altos permitiendo pagar únicamente lo consumido." }
-    ];
+    let questions = [], currentQ = 0, score = 0, correctCount = 0, timer, timeLeft = 45;
+
+    async function generateQuestions(topic) {
+      const prompt = `Genera exactamente 10 preguntas de trivia tipo Kahoot en español sobre el siguiente tema: "${topic}".
+
+Cada pregunta debe tener:
+- "question": el texto de la pregunta
+- "options": un array de exactamente 4 opciones de respuesta (strings cortos)
+- "correct": el índice (0-3) de la opción correcta
+- "explanation": una explicación breve (máximo 20 palabras) de por qué esa es la respuesta correcta
+
+Las preguntas deben variar en dificultad, ser claras, y cubrir distintos aspectos del tema.
+
+Evita en lo posible preguntas que dependan de un ejemplo para poder responderse; prioriza preguntas directas sobre el concepto. Si de verdad necesitas un ejemplo, usa ÚNICAMENTE apps o servicios súper conocidos y cotidianos para cualquier persona, como Gmail, Netflix, Spotify, WhatsApp o Instagram. NUNCA uses ejemplos técnicos como AWS, Azure, Google Cloud u otros nombres de infraestructura que no sean de uso diario para el público general.
+
+Responde ÚNICAMENTE con un array JSON válido, sin texto adicional, sin markdown, sin backticks. Formato exacto:
+[{"question":"...","options":["...","...","...","..."],"correct":0,"explanation":"..."}, ...]`;
+
+      const response = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model: "claude-sonnet-4-6",
+          max_tokens: 1000,
+          messages: [{ role: "user", content: prompt }]
+        })
+      });
+
+      if (!response.ok) throw new Error("Error de conexión con la IA (" + response.status + ")");
+
+      const data = await response.json();
+      const textBlock = data.content.find(b => b.type === "text");
+      if (!textBlock) throw new Error("La IA no devolvió texto");
+
+      let clean = textBlock.text.trim().replace(/```json/g, "").replace(/```/g, "").trim();
+      const parsed = JSON.parse(clean);
+
+      if (!Array.isArray(parsed) || parsed.length < 5) throw new Error("Formato de preguntas inválido");
+      return parsed;
+    }
 
     function shuffle(array) {
       return JSON.parse(JSON.stringify(array)).sort(() => Math.random() - 0.5);
     }
 
-    function startRandomGame() {
-      // Selecciona 10 preguntas al azar
-      questions = shuffle(questionBank).slice(0, 10).map(q => {
-        let opts = shuffle(q.options.map((opt, i) => ({ text: opt, isCorrect: i === q.correct })));
-        return { question: q.question, options: opts.map(o => o.text), correct: opts.findIndex(o => o.isCorrect), explanation: q.explanation };
-      });
-      currentQ = 0; score = 0;
+    async function startRandomGame() {
+      const topic = document.getElementById('topic-input').value.trim();
+      const errorDiv = document.getElementById('setup-error');
+      errorDiv.innerHTML = '';
+
+      if (!topic) {
+        errorDiv.innerHTML = '<div class="error-box">Por favor escribe un tema para generar las preguntas.</div>';
+        return;
+      }
+
       document.getElementById('setup-screen').classList.add('hidden');
-      document.getElementById('game-screen').classList.remove('hidden');
-      loadQuestion();
+      document.getElementById('loading-screen').classList.remove('hidden');
+
+      try {
+        const raw = await generateQuestions(topic);
+
+        questions = raw.slice(0, 10).map(q => {
+          let opts = shuffle(q.options.map((opt, i) => ({ text: opt, isCorrect: i === q.correct })));
+          return {
+            question: q.question,
+            options: opts.map(o => o.text),
+            correct: opts.findIndex(o => o.isCorrect),
+            explanation: q.explanation
+          };
+        });
+
+        currentQ = 0; score = 0; correctCount = 0;
+        document.getElementById('loading-screen').classList.add('hidden');
+        document.getElementById('game-screen').classList.remove('hidden');
+        loadQuestion();
+      } catch (err) {
+        document.getElementById('loading-screen').classList.add('hidden');
+        document.getElementById('setup-screen').classList.remove('hidden');
+        errorDiv.innerHTML = '<div class="error-box">⚠️ No se pudieron generar las preguntas. Intenta de nuevo. (' + err.message + ')</div>';
+      }
     }
 
     function loadQuestion() {
@@ -104,6 +174,7 @@
       document.getElementById('timer').innerText = timeLeft;
       const q = questions[currentQ];
       document.getElementById('q-num').innerText = currentQ + 1;
+      document.getElementById('q-num').parentElement.innerHTML = 'Pregunta: <span id="q-num">' + (currentQ+1) + '</span>/' + questions.length;
       document.getElementById('question').innerText = q.question;
       document.getElementById('score').innerText = score;
       q.options.forEach((opt, i) => document.getElementById(`opt${i}-text`).innerText = opt);
@@ -123,11 +194,12 @@
       const fb = document.getElementById('feedback'); fb.style.display = 'block';
       if (i === q.correct) {
         score += 500 + (timeLeft * 15);
+        correctCount++;
         document.getElementById('score').innerText = score;
         fb.className = 'feedback correct'; fb.innerHTML = `🎯 ¡CORRECTO!<br><small>${q.explanation}</small>`;
       } else {
         fb.className = 'feedback incorrect';
-        fb.innerHTML = `❌ Incorrecto. La respuesta era: <strong>${q.options[q.correct]}</strong>`;
+        fb.innerHTML = `❌ Incorrecto. La respuesta era: <strong>${q.options[q.correct]}</strong><br><small>${q.explanation}</small>`;
       }
       document.getElementById('next-btn').classList.remove('hidden');
     }
@@ -139,12 +211,18 @@
         document.getElementById('game-screen').classList.add('hidden');
         document.getElementById('final-screen').classList.remove('hidden');
         document.getElementById('final-score').innerText = score;
+
+        const total = questions.length;
+        const grade = 3.0 + (correctCount / total) * 2.0;
+        document.getElementById('final-grade').innerText = grade.toFixed(1);
+        document.getElementById('final-correct').innerText = correctCount + '/' + total + ' correctas';
       }
     }
 
     function resetToSetup() {
       document.getElementById('final-screen').classList.add('hidden');
       document.getElementById('setup-screen').classList.remove('hidden');
+      document.getElementById('setup-error').innerHTML = '';
     }
   </script>
 </body>
